@@ -32,7 +32,10 @@ function loadImage(src: string, crossOrigin = true): Promise<HTMLImageElement> {
 }
 
 function buildSquare(img: HTMLImageElement, bg: string | null): HTMLCanvasElement {
-  const size = Math.max(img.width, img.height);
+  // Cover-crop: square = min(w,h), center-cropped so the image fully fills 1:1 with no padding.
+  const size = Math.min(img.width, img.height);
+  const sx = (img.width - size) / 2;
+  const sy = (img.height - size) / 2;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
@@ -41,9 +44,7 @@ function buildSquare(img: HTMLImageElement, bg: string | null): HTMLCanvasElemen
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, size, size);
   }
-  const x = (size - img.width) / 2;
-  const y = (size - img.height) / 2;
-  ctx.drawImage(img, x, y);
+  ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
   return canvas;
 }
 
