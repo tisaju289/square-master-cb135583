@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import {
   Upload, Link as LinkIcon, ImageIcon, Sparkles, Square, Download,
-  Copy, Check, RotateCcw, Lock, Loader2, AlertCircle,
+  Copy, Check, RotateCcw, Loader2, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { removeBackground } from "@imgly/background-removal";
 
 type LoadedImage = {
   el: HTMLImageElement;
@@ -50,7 +51,7 @@ export default function SquareStudio() {
   const [image, setImage] = useState<LoadedImage | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [bgColor, setBgColor] = useState("#ffffff");
-  const [apiKey, setApiKey] = useState("");
+  
   const [processing, setProcessing] = useState<null | "with" | "without">(null);
   const [result, setResult] = useState<{ canvas: HTMLCanvasElement; url: string; w: number; h: number } | null>(null);
   const [blobUrl, setBlobUrl] = useState<string>("");
@@ -125,37 +126,23 @@ export default function SquareStudio() {
 
   const processWithoutBg = useCallback(async () => {
     if (!image) return;
-    if (!apiKey.trim()) {
-      toast.error("Please enter your remove.bg API key");
-      return;
-    }
     setProcessing("without");
     try {
-      const blob = await fetch(image.src).then((r) => r.blob());
-      const form = new FormData();
-      form.append("image_file", blob);
-      form.append("size", "auto");
-      const res = await fetch("https://api.remove.bg/v1.0/removebg", {
-        method: "POST",
-        headers: { "X-Api-Key": apiKey.trim() },
-        body: form,
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || "remove.bg failed");
-      }
-      const outBlob = await res.blob();
+      const srcBlob = await fetch(image.src).then((r) => r.blob());
+      const outBlob = await removeBackground(srcBlob);
       const outUrl = URL.createObjectURL(outBlob);
       const el = await loadImage(outUrl, false);
       const canvas = buildSquare(el, null);
       finalize(canvas);
+      URL.revokeObjectURL(outUrl);
       toast.success("Background removed & squared");
     } catch (e) {
-      toast.error("Background removal failed. Check your API key.");
+      console.error(e);
+      toast.error("Background removal failed. Try a different image.");
     } finally {
       setProcessing(null);
     }
-  }, [image, apiKey, finalize]);
+  }, [image, finalize]);
 
   const download = (type: "png" | "jpg" | "webp") => {
     if (!result) return;
@@ -345,23 +332,6 @@ export default function SquareStudio() {
                   />
                 </div>
 
-                {/* API key */}
-                <div className="space-y-2 p-4 rounded-xl border border-border bg-surface">
-                  <label className="text-sm font-medium flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-primary" />
-                    remove.bg API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Paste your remove.bg API key"
-                    className="w-full px-4 py-2.5 rounded-lg bg-input border border-border focus:border-primary focus:outline-none text-sm font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Your key is never stored or sent anywhere except remove.bg.
-                  </p>
-                </div>
               </div>
             )}
           </section>
