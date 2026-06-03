@@ -179,7 +179,7 @@ export default function SquareStudio() {
 
   const reset = () => {
     if (image?.src.startsWith("blob:")) URL.revokeObjectURL(image.src);
-    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    
     setImage(null);
     setResult(null);
     setBlobUrl("");
