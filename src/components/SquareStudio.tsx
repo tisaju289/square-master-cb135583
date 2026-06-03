@@ -126,37 +126,23 @@ export default function SquareStudio() {
 
   const processWithoutBg = useCallback(async () => {
     if (!image) return;
-    if (!apiKey.trim()) {
-      toast.error("Please enter your remove.bg API key");
-      return;
-    }
     setProcessing("without");
     try {
-      const blob = await fetch(image.src).then((r) => r.blob());
-      const form = new FormData();
-      form.append("image_file", blob);
-      form.append("size", "auto");
-      const res = await fetch("https://api.remove.bg/v1.0/removebg", {
-        method: "POST",
-        headers: { "X-Api-Key": apiKey.trim() },
-        body: form,
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || "remove.bg failed");
-      }
-      const outBlob = await res.blob();
+      const srcBlob = await fetch(image.src).then((r) => r.blob());
+      const outBlob = await removeBackground(srcBlob);
       const outUrl = URL.createObjectURL(outBlob);
       const el = await loadImage(outUrl, false);
       const canvas = buildSquare(el, null);
       finalize(canvas);
+      URL.revokeObjectURL(outUrl);
       toast.success("Background removed & squared");
     } catch (e) {
-      toast.error("Background removal failed. Check your API key.");
+      console.error(e);
+      toast.error("Background removal failed. Try a different image.");
     } finally {
       setProcessing(null);
     }
-  }, [image, apiKey, finalize]);
+  }, [image, finalize]);
 
   const download = (type: "png" | "jpg" | "webp") => {
     if (!result) return;
