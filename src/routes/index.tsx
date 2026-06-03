@@ -1,29 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Toaster } from "sonner";
+import SquareStudio from "@/components/SquareStudio";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Your App" },
-      { name: "description", content: "Replace this with a one-sentence description of your app." },
-      { property: "og:title", content: "Your App" },
-      { property: "og:description", content: "Replace this with a one-sentence description of your app." },
+      { title: "Square Studio — Image to 1:1 Ratio Converter" },
+      { name: "description", content: "Convert any image to perfect 1:1 square ratio with or without background. Fast, free, browser-based." },
+      { property: "og:title", content: "Square Studio — Image to 1:1 Ratio Converter" },
+      { property: "og:description", content: "Convert any image to perfect 1:1 square ratio with or without background." },
     ],
   }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <>
+      <SquareStudio />
+      <Toaster theme="dark" position="bottom-right" richColors />
+    </>
   );
 }
