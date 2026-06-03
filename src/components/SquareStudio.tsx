@@ -4,7 +4,7 @@ import {
   Copy, Check, RotateCcw, Loader2, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { removeBackground } from "@imgly/background-removal";
+
 
 type LoadedImage = {
   el: HTMLImageElement;
@@ -140,16 +140,27 @@ export default function SquareStudio() {
     setProcessing("without");
     try {
       const srcBlob = await fetch(image.src).then((r) => r.blob());
-      const outBlob = await removeBackground(srcBlob);
+      const ct = srcBlob.type && srcBlob.type.startsWith("image/") ? srcBlob.type : "image/png";
+      const res = await fetch("/api/public/remove-bg", {
+        method: "POST",
+        headers: { "Content-Type": ct },
+        body: srcBlob,
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({ error: "Failed" }));
+        throw new Error(j.error || "Failed");
+      }
+      const outBlob = await res.blob();
       const outUrl = URL.createObjectURL(outBlob);
       const el = await loadImage(outUrl, false);
       const canvas = buildSquare(el, null);
       finalize(canvas);
       URL.revokeObjectURL(outUrl);
       toast.success("Background removed & squared");
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      toast.error("Background removal failed. Try a different image.");
+      const msg = e instanceof Error ? e.message : "Background removal failed";
+      toast.error(msg);
     } finally {
       setProcessing(null);
     }
