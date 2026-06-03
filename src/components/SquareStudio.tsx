@@ -332,23 +332,6 @@ export default function SquareStudio() {
                   />
                 </div>
 
-                {/* API key */}
-                <div className="space-y-2 p-4 rounded-xl border border-border bg-surface">
-                  <label className="text-sm font-medium flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-primary" />
-                    remove.bg API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Paste your remove.bg API key"
-                    className="w-full px-4 py-2.5 rounded-lg bg-input border border-border focus:border-primary focus:outline-none text-sm font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Your key is never stored or sent anywhere except remove.bg.
-                  </p>
-                </div>
               </div>
             )}
           </section>
