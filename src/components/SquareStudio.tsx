@@ -104,13 +104,23 @@ export default function SquareStudio() {
   const finalize = useCallback((canvas: HTMLCanvasElement) => {
     const url = canvas.toDataURL("image/png");
     setResult({ canvas, url, w: canvas.width, h: canvas.height });
-    canvas.toBlob((blob) => {
-      if (blob) {
-        if (blobUrl) URL.revokeObjectURL(blobUrl);
-        setBlobUrl(URL.createObjectURL(blob));
+    setBlobUrl("");
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      try {
+        const res = await fetch("/api/public/upload-square", {
+          method: "POST",
+          headers: { "Content-Type": "image/png" },
+          body: blob,
+        });
+        if (!res.ok) throw new Error("upload_failed");
+        const data = (await res.json()) as { url: string };
+        setBlobUrl(data.url);
+      } catch {
+        toast.error("Public link upload failed. Use download instead.");
       }
     }, "image/png");
-  }, [blobUrl]);
+  }, []);
 
   const processWithBg = useCallback(async () => {
     if (!image) return;
@@ -169,7 +179,7 @@ export default function SquareStudio() {
 
   const reset = () => {
     if (image?.src.startsWith("blob:")) URL.revokeObjectURL(image.src);
-    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    
     setImage(null);
     setResult(null);
     setBlobUrl("");
