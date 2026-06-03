@@ -1,5 +1,4 @@
-import pkg from "@lovable.dev/vite-tanstack-config";
-const { defineConfig } = pkg;
+import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   nitro: true,
