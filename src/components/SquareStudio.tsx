@@ -76,14 +76,26 @@ export default function SquareStudio() {
   }, []);
 
   const handleUrl = useCallback(async () => {
-    if (!urlInput.trim()) return;
+    const raw = urlInput.trim();
+    if (!raw) return;
     setError(null);
+    const proxied = `/api/proxy-image?url=${encodeURIComponent(raw)}`;
+    // Try direct first (faster, keeps original URL). If CORS or load fails, fall back to server proxy.
     try {
-      const el = await loadImage(urlInput.trim(), true);
-      setImage({ el, src: urlInput.trim(), width: el.naturalWidth, height: el.naturalHeight });
+      const el = await loadImage(raw, true);
+      setImage({ el, src: raw, width: el.naturalWidth, height: el.naturalHeight });
       setResult(null);
+      return;
     } catch {
-      setError("এই image URL সরাসরি load করা যাচ্ছে না। Image টি download করে upload করুন।");
+      // fall through to proxy
+    }
+    try {
+      const el = await loadImage(proxied, false);
+      setImage({ el, src: proxied, width: el.naturalWidth, height: el.naturalHeight });
+      setResult(null);
+      toast.success("Loaded via proxy");
+    } catch {
+      setError("এই image URL load করা যাচ্ছে না। URL টি সঠিক কিনা check করুন, অথবা image টি download করে upload করুন।");
     }
   }, [urlInput]);
 
