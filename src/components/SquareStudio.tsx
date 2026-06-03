@@ -51,7 +51,7 @@ export default function SquareStudio() {
   const [image, setImage] = useState<LoadedImage | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [bgColor, setBgColor] = useState("#ffffff");
-  const [apiKey, setApiKey] = useState("");
+  
   const [processing, setProcessing] = useState<null | "with" | "without">(null);
   const [result, setResult] = useState<{ canvas: HTMLCanvasElement; url: string; w: number; h: number } | null>(null);
   const [blobUrl, setBlobUrl] = useState<string>("");
