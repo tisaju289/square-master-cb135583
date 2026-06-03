@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import {
   Upload, Link as LinkIcon, ImageIcon, Sparkles, Square, Download,
-  Copy, Check, RotateCcw, Lock, Loader2, AlertCircle,
+  Copy, Check, RotateCcw, Loader2, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { removeBackground } from "@imgly/background-removal";
 
 type LoadedImage = {
   el: HTMLImageElement;
