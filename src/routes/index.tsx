@@ -6,9 +6,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Square Studio — Image to 1:1 Ratio Converter" },
-      { name: "description", content: "Convert any image to perfect 1:1 square ratio with or without background. Fast, free, browser-based." },
+      { name: "description", content: "Resize images to square, portrait, story, landscape, or custom ratios with optional background removal." },
       { property: "og:title", content: "Square Studio — Image to 1:1 Ratio Converter" },
-      { property: "og:description", content: "Convert any image to perfect 1:1 square ratio with or without background." },
+      { property: "og:description", content: "Resize images to custom ratios with optional background removal." },
     ],
   }),
   component: Index,
@@ -18,7 +18,7 @@ function Index() {
   return (
     <>
       <SquareStudio />
-      <Toaster theme="dark" position="bottom-right" richColors />
+      <Toaster theme="system" position="bottom-right" richColors />
     </>
   );
 }
