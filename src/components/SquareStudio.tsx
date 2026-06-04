@@ -178,7 +178,7 @@ export default function SquareStudio() {
       try {
         const res = await fetch("/api/public/upload-square", {
           method: "POST",
-          headers: { "Content-Type": "image/png" },
+          headers: { "Content-Type": blob.type || "image/png" },
           body: blob,
         });
         if (!res.ok) throw new Error("upload_failed");
@@ -189,7 +189,7 @@ export default function SquareStudio() {
         setLinkStatus("failed");
         toast.error("Public link upload failed. Use download instead.");
       }
-    }, "image/png");
+    }, "image/webp", 0.92);
   }, []);
 
   const processWithBg = useCallback(async () => {
