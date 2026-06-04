@@ -15,7 +15,7 @@ function getBackendConfig() {
   return { url, key };
 }
 
-export const Route = createFileRoute("/api/img/$key")({
+export const Route = createFileRoute("/api/public/img/$key")({
   server: {
     handlers: {
       GET: async ({ params }) => {
@@ -36,9 +36,7 @@ export const Route = createFileRoute("/api/img/$key")({
         if (!res.ok) return new Response("Not found", { status: 404 });
         const rows = (await res.json()) as Array<{ content_type: string; data_base64: string }>;
         const image = rows[0];
-        if (!image) {
-          return new Response("Not found", { status: 404 });
-        }
+        if (!image) return new Response("Not found", { status: 404 });
         return new Response(base64ToBytes(image.data_base64), {
           status: 200,
           headers: {

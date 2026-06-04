@@ -1,7 +1,7 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload, Link as LinkIcon, ImageIcon, Sparkles, Square, Download,
-  Copy, Check, RotateCcw, Loader2, AlertCircle,
+  Copy, Check, RotateCcw, Loader2, AlertCircle, Crop, Moon, Sun,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -12,6 +12,32 @@ type LoadedImage = {
   width: number;
   height: number;
 };
+
+type ResultImage = {
+  canvas: HTMLCanvasElement;
+  url: string;
+  w: number;
+  h: number;
+  mode: "with" | "without";
+  ratioLabel: string;
+};
+
+type ResizePreset = {
+  id: string;
+  label: string;
+  detail: string;
+  width: number;
+  height: number;
+};
+
+const RESIZE_PRESETS: ResizePreset[] = [
+  { id: "1:1", label: "Square", detail: "1:1 · 1080×1080", width: 1080, height: 1080 },
+  { id: "4:5", label: "Portrait", detail: "4:5 · 1080×1350", width: 1080, height: 1350 },
+  { id: "9:16", label: "Story", detail: "9:16 · 1080×1920", width: 1080, height: 1920 },
+  { id: "16:9", label: "Landscape", detail: "16:9 · 1920×1080", width: 1920, height: 1080 },
+  { id: "3:2", label: "Classic", detail: "3:2 · 1500×1000", width: 1500, height: 1000 },
+  { id: "custom", label: "Custom", detail: "Your size", width: 1080, height: 1080 },
+];
 
 function gcd(a: number, b: number): number {
   return b === 0 ? a : gcd(b, a % b);
@@ -31,20 +57,40 @@ function loadImage(src: string, crossOrigin = true): Promise<HTMLImageElement> {
   });
 }
 
-function buildSquare(img: HTMLImageElement, bg: string | null): HTMLCanvasElement {
-  // Cover-crop: square = min(w,h), center-cropped so the image fully fills 1:1 with no padding.
-  const size = Math.min(img.width, img.height);
-  const sx = (img.width - size) / 2;
-  const sy = (img.height - size) / 2;
+function clampSize(value: string, fallback: number) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(32, Math.min(2400, parsed));
+}
+
+function targetSize(presetId: string, customWidth: string, customHeight: string) {
+  const preset = RESIZE_PRESETS.find((item) => item.id === presetId) ?? RESIZE_PRESETS[0];
+  const width = preset.id === "custom" ? clampSize(customWidth, 1080) : preset.width;
+  const height = preset.id === "custom" ? clampSize(customHeight, 1080) : preset.height;
+  return {
+    width,
+    height,
+    label: `${ratioStr(width, height)} · ${width}×${height}`,
+  };
+}
+
+function buildCoverCanvas(img: HTMLImageElement, bg: string | null, targetW: number, targetH: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = targetW;
+  canvas.height = targetH;
   const ctx = canvas.getContext("2d")!;
   if (bg) {
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, targetW, targetH);
   }
-  ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+  const scale = Math.max(targetW / img.width, targetH / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  const dx = (targetW - dw) / 2;
+  const dy = (targetH - dh) / 2;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, dx, dy, dw, dh);
   return canvas;
 }
 
@@ -52,14 +98,32 @@ export default function SquareStudio() {
   const [image, setImage] = useState<LoadedImage | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [bgColor, setBgColor] = useState("#ffffff");
+  const [ratioPreset, setRatioPreset] = useState("1:1");
+  const [customWidth, setCustomWidth] = useState("1080");
+  const [customHeight, setCustomHeight] = useState("1080");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   
   const [processing, setProcessing] = useState<null | "with" | "without">(null);
-  const [result, setResult] = useState<{ canvas: HTMLCanvasElement; url: string; w: number; h: number } | null>(null);
+  const [result, setResult] = useState<ResultImage | null>(null);
   const [blobUrl, setBlobUrl] = useState<string>("");
+  const [linkStatus, setLinkStatus] = useState<"idle" | "uploading" | "ready" | "failed">("idle");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("square-studio-theme");
+    if (saved === "light" || saved === "dark") setTheme(saved);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("light", theme === "light");
+    window.localStorage.setItem("square-studio-theme", theme);
+  }, [theme]);
+
+  const activeSize = targetSize(ratioPreset, customWidth, customHeight);
 
   const handleFile = useCallback(async (file: File) => {
     setError(null);
@@ -101,25 +165,31 @@ export default function SquareStudio() {
     }
   }, [urlInput]);
 
-  const finalize = useCallback((canvas: HTMLCanvasElement) => {
+  const finalize = useCallback((canvas: HTMLCanvasElement, mode: "with" | "without", ratioLabel: string) => {
     const url = canvas.toDataURL("image/png");
-    setResult({ canvas, url, w: canvas.width, h: canvas.height });
+    setResult({ canvas, url, w: canvas.width, h: canvas.height, mode, ratioLabel });
     setBlobUrl("");
+    setLinkStatus("uploading");
     canvas.toBlob(async (blob) => {
-      if (!blob) return;
+      if (!blob) {
+        setLinkStatus("failed");
+        return;
+      }
       try {
         const res = await fetch("/api/public/upload-square", {
           method: "POST",
-          headers: { "Content-Type": "image/png" },
+          headers: { "Content-Type": blob.type || "image/png" },
           body: blob,
         });
         if (!res.ok) throw new Error("upload_failed");
         const data = (await res.json()) as { url: string };
         setBlobUrl(data.url);
+        setLinkStatus("ready");
       } catch {
+        setLinkStatus("failed");
         toast.error("Public link upload failed. Use download instead.");
       }
-    }, "image/png");
+    }, "image/webp", 0.92);
   }, []);
 
   const processWithBg = useCallback(async () => {
@@ -127,18 +197,20 @@ export default function SquareStudio() {
     setProcessing("with");
     try {
       await new Promise((r) => setTimeout(r, 200));
-      const canvas = buildSquare(image.el, bgColor);
-      finalize(canvas);
-      toast.success("Converted to 1:1");
+      const size = targetSize(ratioPreset, customWidth, customHeight);
+      const canvas = buildCoverCanvas(image.el, bgColor, size.width, size.height);
+      finalize(canvas, "with", size.label);
+      toast.success(`Resized to ${size.label}`);
     } finally {
       setProcessing(null);
     }
-  }, [image, bgColor, finalize]);
+  }, [image, bgColor, ratioPreset, customWidth, customHeight, finalize]);
 
   const processWithoutBg = useCallback(async () => {
     if (!image) return;
     setProcessing("without");
     try {
+      const size = targetSize(ratioPreset, customWidth, customHeight);
       const srcBlob = await fetch(image.src).then((r) => r.blob());
       const ct = srcBlob.type && srcBlob.type.startsWith("image/") ? srcBlob.type : "image/png";
       const res = await fetch("/api/public/remove-bg", {
@@ -153,10 +225,10 @@ export default function SquareStudio() {
       const outBlob = await res.blob();
       const outUrl = URL.createObjectURL(outBlob);
       const el = await loadImage(outUrl, false);
-      const canvas = buildSquare(el, null);
-      finalize(canvas);
+      const canvas = buildCoverCanvas(el, null, size.width, size.height);
+      finalize(canvas, "without", size.label);
       URL.revokeObjectURL(outUrl);
-      toast.success("Background removed & squared");
+      toast.success(`Background removed & resized to ${size.label}`);
     } catch (e: unknown) {
       console.error(e);
       const msg = e instanceof Error ? e.message : "Background removal failed";
@@ -164,7 +236,7 @@ export default function SquareStudio() {
     } finally {
       setProcessing(null);
     }
-  }, [image, finalize]);
+  }, [image, ratioPreset, customWidth, customHeight, finalize]);
 
   const download = (type: "png" | "jpg" | "webp") => {
     if (!result) return;
@@ -172,7 +244,7 @@ export default function SquareStudio() {
     const url = type === "png" ? result.canvas.toDataURL("image/png") : result.canvas.toDataURL(mime, 0.92);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `square-studio.${type}`;
+    a.download = `ti-saju-square-studio-${result.w}x${result.h}.${type}`;
     a.click();
   };
 
@@ -194,6 +266,7 @@ export default function SquareStudio() {
     setImage(null);
     setResult(null);
     setBlobUrl("");
+    setLinkStatus("idle");
     setUrlInput("");
     setError(null);
   };
@@ -203,15 +276,24 @@ export default function SquareStudio() {
       {/* Header */}
       <header className="border-b border-border/60 backdrop-blur sticky top-0 z-10 bg-background/80">
         <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow">
               <Square className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
             </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">Square <span className="text-gradient">Studio</span></h1>
-              <p className="text-xs text-muted-foreground">Image to 1:1 ratio converter</p>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight truncate">Ti Saju <span className="text-gradient">Square Studio</span></h1>
+              <p className="text-xs text-muted-foreground">Image ratio resize converter</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-border hover:bg-surface-elevated transition-colors"
+              aria-label="Toggle theme"
+              title="Toggle theme"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           {image && (
             <button
               onClick={reset}
@@ -220,6 +302,7 @@ export default function SquareStudio() {
               <RotateCcw className="w-4 h-4" /> Reset
             </button>
           )}
+          </div>
         </div>
       </header>
 
@@ -228,8 +311,8 @@ export default function SquareStudio() {
           {/* LEFT */}
           <section className="space-y-6">
             <div>
-              <h2 className="text-3xl font-bold mb-2">Drop in. <span className="text-gradient">Square out.</span></h2>
-              <p className="text-muted-foreground">Convert any image to a perfect 1:1 ratio — with or without background.</p>
+              <h2 className="text-3xl font-bold mb-2">Drop in. <span className="text-gradient">Resize out.</span></h2>
+              <p className="text-muted-foreground">Resize any image to the ratio you need — with or without background.</p>
             </div>
 
             {/* Upload zone */}
@@ -306,6 +389,61 @@ export default function SquareStudio() {
                   </div>
                 </div>
 
+                {/* Size options */}
+                <div className="rounded-2xl border border-border bg-surface p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Crop className="w-4 h-4" /> Resize ratio
+                    </h3>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-primary/15 text-primary border border-primary/30 font-medium">
+                      {activeSize.label}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {RESIZE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setRatioPreset(preset.id)}
+                        className={`text-left rounded-lg border px-3 py-2.5 transition-all ${
+                          ratioPreset === preset.id
+                            ? "border-primary bg-primary/10 shadow-glow"
+                            : "border-border bg-surface-elevated hover:border-primary/60"
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{preset.label}</span>
+                        <span className="block text-xs text-muted-foreground">{preset.detail}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {ratioPreset === "custom" && (
+                    <div className="grid grid-cols-2 gap-3 animate-fade-in">
+                      <label className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Width</span>
+                        <input
+                          type="number"
+                          min="32"
+                          max="2400"
+                          value={customWidth}
+                          onChange={(e) => setCustomWidth(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-sm focus:outline-none focus:border-primary"
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Height</span>
+                        <input
+                          type="number"
+                          min="32"
+                          max="2400"
+                          value={customHeight}
+                          onChange={(e) => setCustomHeight(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-sm focus:outline-none focus:border-primary"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+
                 {/* Two option cards */}
                 <div className="grid sm:grid-cols-2 gap-4">
                   <button
@@ -318,8 +456,8 @@ export default function SquareStudio() {
                         ? <Loader2 className="w-5 h-5 text-primary-foreground animate-spin" />
                         : <Sparkles className="w-5 h-5 text-primary-foreground" />}
                     </div>
-                    <h3 className="font-bold text-lg mb-1">Without BG → 1:1</h3>
-                    <p className="text-sm text-muted-foreground">Remove background, center on transparent square.</p>
+                    <h3 className="font-bold text-lg mb-1">Without BG</h3>
+                    <p className="text-sm text-muted-foreground">Remove background, export transparent cover resize.</p>
                   </button>
 
                   <button
@@ -332,8 +470,8 @@ export default function SquareStudio() {
                         ? <Loader2 className="w-5 h-5 text-primary-foreground animate-spin" />
                         : <Square className="w-5 h-5 text-primary-foreground" />}
                     </div>
-                    <h3 className="font-bold text-lg mb-1">With BG → 1:1</h3>
-                    <p className="text-sm text-muted-foreground">Pad with solid color, keep original background.</p>
+                    <h3 className="font-bold text-lg mb-1">With BG</h3>
+                    <p className="text-sm text-muted-foreground">Resize to selected ratio with full cover crop.</p>
                   </button>
                 </div>
 
@@ -365,12 +503,12 @@ export default function SquareStudio() {
                 <h3 className="font-bold text-lg">Preview</h3>
                 {result && (
                   <span className="text-xs px-2.5 py-1 rounded-full bg-primary/15 text-primary border border-primary/30 font-medium">
-                    {result.w} × {result.h} — 1:1 ✓
+                    {result.w} × {result.h} — {result.ratioLabel.split(" · ")[0]} ✓
                   </span>
                 )}
               </div>
 
-              <div className="flex-1 checker-bg rounded-xl overflow-hidden flex items-center justify-center min-h-[320px] p-4">
+              <div className={`flex-1 rounded-xl overflow-hidden flex items-center justify-center min-h-[320px] p-4 ${result?.mode === "without" ? "bg-surface-elevated" : "checker-bg"}`}>
                 {result ? (
                   <img src={result.url} alt="Result" className="max-w-full max-h-[420px] object-contain animate-fade-in shadow-elevated" />
                 ) : image ? (
@@ -412,17 +550,21 @@ export default function SquareStudio() {
                   <div className="flex gap-2">
                     <input
                       readOnly
-                      value={blobUrl}
+                      value={linkStatus === "uploading" ? "Creating public link..." : blobUrl}
                       className="flex-1 px-3 py-2.5 rounded-lg bg-input border border-border text-xs font-mono truncate focus:outline-none"
                     />
                     <button
                       onClick={copyLink}
-                      className="px-4 py-2.5 rounded-lg bg-gradient-primary text-primary-foreground font-medium text-sm flex items-center gap-2 hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-glow"
+                      disabled={!blobUrl || linkStatus !== "ready"}
+                      className="px-4 py-2.5 rounded-lg bg-gradient-primary text-primary-foreground font-medium text-sm flex items-center gap-2 hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                     >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      {copied ? "Copied" : "Copy"}
+                      {linkStatus === "uploading" ? <Loader2 className="w-4 h-4 animate-spin" /> : copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {linkStatus === "uploading" ? "Wait" : copied ? "Copied" : "Copy"}
                     </button>
                   </div>
+                  {linkStatus === "failed" && (
+                    <p className="mt-2 text-xs text-destructive">Public link failed. Please try processing again.</p>
+                  )}
                 </div>
               </div>
             )}
@@ -431,7 +573,15 @@ export default function SquareStudio() {
       </main>
 
       <footer className="max-w-7xl mx-auto px-6 py-8 text-center text-xs text-muted-foreground">
-        Square Studio — Professional 1:1 image converter
+        Develop by{" "}
+        <a
+          href="https://www.facebook.com/tisaju289"
+          target="_blank"
+          rel="noreferrer"
+          className="text-primary hover:underline font-medium"
+        >
+          Tajul Islam Saju
+        </a>
       </footer>
     </div>
   );

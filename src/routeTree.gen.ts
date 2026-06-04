@@ -14,6 +14,7 @@ import { Route as ApiProxyImageRouteImport } from './routes/api/proxy-image'
 import { Route as ApiPublicUploadSquareRouteImport } from './routes/api/public/upload-square'
 import { Route as ApiPublicRemoveBgRouteImport } from './routes/api/public/remove-bg'
 import { Route as ApiImgKeyRouteImport } from './routes/api/img/$key'
+import { Route as ApiPublicImgKeyRouteImport } from './routes/api/public/img/$key'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +41,11 @@ const ApiImgKeyRoute = ApiImgKeyRouteImport.update({
   path: '/api/img/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicImgKeyRoute = ApiPublicImgKeyRouteImport.update({
+  id: '/api/public/img/$key',
+  path: '/api/public/img/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/api/img/$key': typeof ApiImgKeyRoute
   '/api/public/remove-bg': typeof ApiPublicRemoveBgRoute
   '/api/public/upload-square': typeof ApiPublicUploadSquareRoute
+  '/api/public/img/$key': typeof ApiPublicImgKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/api/img/$key': typeof ApiImgKeyRoute
   '/api/public/remove-bg': typeof ApiPublicRemoveBgRoute
   '/api/public/upload-square': typeof ApiPublicUploadSquareRoute
+  '/api/public/img/$key': typeof ApiPublicImgKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,6 +70,7 @@ export interface FileRoutesById {
   '/api/img/$key': typeof ApiImgKeyRoute
   '/api/public/remove-bg': typeof ApiPublicRemoveBgRoute
   '/api/public/upload-square': typeof ApiPublicUploadSquareRoute
+  '/api/public/img/$key': typeof ApiPublicImgKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -71,6 +80,7 @@ export interface FileRouteTypes {
     | '/api/img/$key'
     | '/api/public/remove-bg'
     | '/api/public/upload-square'
+    | '/api/public/img/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -78,6 +88,7 @@ export interface FileRouteTypes {
     | '/api/img/$key'
     | '/api/public/remove-bg'
     | '/api/public/upload-square'
+    | '/api/public/img/$key'
   id:
     | '__root__'
     | '/'
@@ -85,6 +96,7 @@ export interface FileRouteTypes {
     | '/api/img/$key'
     | '/api/public/remove-bg'
     | '/api/public/upload-square'
+    | '/api/public/img/$key'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -93,6 +105,7 @@ export interface RootRouteChildren {
   ApiImgKeyRoute: typeof ApiImgKeyRoute
   ApiPublicRemoveBgRoute: typeof ApiPublicRemoveBgRoute
   ApiPublicUploadSquareRoute: typeof ApiPublicUploadSquareRoute
+  ApiPublicImgKeyRoute: typeof ApiPublicImgKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -132,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImgKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/img/$key': {
+      id: '/api/public/img/$key'
+      path: '/api/public/img/$key'
+      fullPath: '/api/public/img/$key'
+      preLoaderRoute: typeof ApiPublicImgKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -141,17 +161,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImgKeyRoute: ApiImgKeyRoute,
   ApiPublicRemoveBgRoute: ApiPublicRemoveBgRoute,
   ApiPublicUploadSquareRoute: ApiPublicUploadSquareRoute,
+  ApiPublicImgKeyRoute: ApiPublicImgKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
