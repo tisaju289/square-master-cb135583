@@ -349,7 +349,7 @@ export default function SquareStudio() {
         <div className="grid lg:grid-cols-2 gap-6 lg:gap-8">
 
           {/* LEFT — controls */}
-          <section className="space-y-4 sm:space-y-6 order-2 lg:order-1">
+          <section className="space-y-4 sm:space-y-6">
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">
                 Drop in. <span className="text-gradient">Resize out.</span>
@@ -400,6 +400,68 @@ export default function SquareStudio() {
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-xs sm:text-sm text-destructive animate-fade-in">
                   <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>{error}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile-only inline preview — shows after URL, before controls */}
+            <div className="block lg:hidden">
+              <div className="rounded-2xl border border-border bg-gradient-surface p-4 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-base">Preview</h3>
+                  {result && (
+                    <span className="text-[10px] px-2 py-1 rounded-full bg-primary/15 text-primary border border-primary/30 font-medium">
+                      {result.w} × {result.h} — {result.ratioLabel.split(" · ")[0]} ✓
+                    </span>
+                  )}
+                </div>
+                <div className="rounded-xl overflow-hidden flex items-center justify-center p-3 min-h-[200px] checker-bg">
+                  {result ? (
+                    <img src={result.url} alt="Result"
+                      className="max-w-full max-h-[240px] object-contain animate-fade-in shadow-elevated rounded-lg" />
+                  ) : image ? (
+                    <img src={image.src} alt="Original"
+                      className="max-w-full max-h-[240px] object-contain opacity-60" />
+                  ) : (
+                    <div className="text-center text-muted-foreground py-6">
+                      <ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                      <p className="text-xs">Your result will appear here</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {result && (
+                <div className="space-y-3 mt-3 animate-fade-in">
+                  <div className="rounded-2xl border border-border bg-surface p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                      <Download className="w-4 h-4" /> Download
+                    </h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(["png", "jpg", "webp"] as const).map((t) => (
+                        <button key={t} onClick={() => download(t)}
+                          className="py-2.5 rounded-lg border border-border bg-surface-elevated hover:border-primary hover:-translate-y-0.5 hover:shadow-glow transition-all text-xs font-semibold uppercase tracking-wider">
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-surface p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                      <LinkIcon className="w-4 h-4" /> Direct link
+                    </h4>
+                    <div className="flex gap-2">
+                      <input readOnly value={linkStatus === "uploading" ? "Creating public link..." : blobUrl}
+                        className="flex-1 min-w-0 px-3 py-2.5 rounded-lg bg-input border border-border text-xs font-mono truncate focus:outline-none" />
+                      <button onClick={copyLink} disabled={!blobUrl || linkStatus !== "ready"}
+                        className="px-3 py-2.5 rounded-lg bg-gradient-primary text-primary-foreground font-medium text-xs flex items-center gap-1.5 hover:opacity-90 transition-all shadow-glow disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
+                        {linkStatus === "uploading" ? <Loader2 className="w-4 h-4 animate-spin" /> : copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        <span>{linkStatus === "uploading" ? "Wait" : copied ? "Copied" : "Copy"}</span>
+                      </button>
+                    </div>
+                    {linkStatus === "failed" && (
+                      <p className="mt-2 text-xs text-destructive">Public link failed. Please try processing again.</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -467,7 +529,32 @@ export default function SquareStudio() {
                   )}
                 </div>
 
-                {/* Background Color */}
+                {/* Action cards — above color picker */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <button onClick={processWithoutBg} disabled={processing !== null}
+                    className="group text-left p-4 sm:p-5 rounded-2xl border border-border bg-surface hover:border-primary hover:-translate-y-1 hover:shadow-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-primary flex items-center justify-center mb-2 sm:mb-3 shadow-glow">
+                      {processing === "without"
+                        ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground animate-spin" />
+                        : <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />}
+                    </div>
+                    <h3 className="font-bold text-sm sm:text-base mb-0.5">Remove BG</h3>
+                    <p className="text-xs text-muted-foreground leading-snug">AI removes background, apply your color.</p>
+                  </button>
+
+                  <button onClick={processWithBg} disabled={processing !== null}
+                    className="group text-left p-4 sm:p-5 rounded-2xl border border-border bg-surface hover:border-primary hover:-translate-y-1 hover:shadow-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-primary flex items-center justify-center mb-2 sm:mb-3 shadow-glow">
+                      {processing === "with"
+                        ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground animate-spin" />
+                        : <Square className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />}
+                    </div>
+                    <h3 className="font-bold text-sm sm:text-base mb-0.5">Keep BG</h3>
+                    <p className="text-xs text-muted-foreground leading-snug">Resize with color padding &amp; cover crop.</p>
+                  </button>
+                </div>
+
+                {/* Background Color — below action buttons */}
                 <div className="rounded-2xl border border-border bg-surface p-4 sm:p-5 space-y-3">
                   <div className="flex items-center gap-2">
                     <Palette className="w-4 h-4 text-primary" />
@@ -481,7 +568,6 @@ export default function SquareStudio() {
 
                   {/* Quick swatches + No Color */}
                   <div className="flex flex-wrap gap-2">
-                    {/* No Color button */}
                     <button
                       onClick={() => setBgColor(null)}
                       title="No background (transparent)"
@@ -541,37 +627,12 @@ export default function SquareStudio() {
                     </p>
                   )}
                 </div>
-
-                {/* Action cards */}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <button onClick={processWithoutBg} disabled={processing !== null}
-                    className="group text-left p-4 sm:p-5 rounded-2xl border border-border bg-surface hover:border-primary hover:-translate-y-1 hover:shadow-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-primary flex items-center justify-center mb-2 sm:mb-3 shadow-glow">
-                      {processing === "without"
-                        ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground animate-spin" />
-                        : <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />}
-                    </div>
-                    <h3 className="font-bold text-sm sm:text-base mb-0.5">Remove BG</h3>
-                    <p className="text-xs text-muted-foreground leading-snug">AI removes background, apply your color.</p>
-                  </button>
-
-                  <button onClick={processWithBg} disabled={processing !== null}
-                    className="group text-left p-4 sm:p-5 rounded-2xl border border-border bg-surface hover:border-primary hover:-translate-y-1 hover:shadow-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-primary flex items-center justify-center mb-2 sm:mb-3 shadow-glow">
-                      {processing === "with"
-                        ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground animate-spin" />
-                        : <Square className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />}
-                    </div>
-                    <h3 className="font-bold text-sm sm:text-base mb-0.5">Keep BG</h3>
-                    <p className="text-xs text-muted-foreground leading-snug">Resize with color padding &amp; cover crop.</p>
-                  </button>
-                </div>
               </div>
             )}
           </section>
 
-          {/* RIGHT — preview */}
-          <section className="space-y-4 sm:space-y-6 order-1 lg:order-2">
+          {/* RIGHT — preview (desktop only) */}
+          <section className="hidden lg:block space-y-4 sm:space-y-6">
             <div className="rounded-2xl border border-border bg-gradient-surface p-4 sm:p-6 flex flex-col">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <h3 className="font-bold text-base sm:text-lg">Preview</h3>
