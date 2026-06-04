@@ -1,7 +1,7 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload, Link as LinkIcon, ImageIcon, Sparkles, Square, Download,
-  Copy, Check, RotateCcw, Loader2, AlertCircle,
+  Copy, Check, RotateCcw, Loader2, AlertCircle, Crop, Moon, Sun,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -12,6 +12,32 @@ type LoadedImage = {
   width: number;
   height: number;
 };
+
+type ResultImage = {
+  canvas: HTMLCanvasElement;
+  url: string;
+  w: number;
+  h: number;
+  mode: "with" | "without";
+  ratioLabel: string;
+};
+
+type ResizePreset = {
+  id: string;
+  label: string;
+  detail: string;
+  width: number;
+  height: number;
+};
+
+const RESIZE_PRESETS: ResizePreset[] = [
+  { id: "1:1", label: "Square", detail: "1:1 · 1080×1080", width: 1080, height: 1080 },
+  { id: "4:5", label: "Portrait", detail: "4:5 · 1080×1350", width: 1080, height: 1350 },
+  { id: "9:16", label: "Story", detail: "9:16 · 1080×1920", width: 1080, height: 1920 },
+  { id: "16:9", label: "Landscape", detail: "16:9 · 1920×1080", width: 1920, height: 1080 },
+  { id: "3:2", label: "Classic", detail: "3:2 · 1500×1000", width: 1500, height: 1000 },
+  { id: "custom", label: "Custom", detail: "Your size", width: 1080, height: 1080 },
+];
 
 function gcd(a: number, b: number): number {
   return b === 0 ? a : gcd(b, a % b);
@@ -31,20 +57,40 @@ function loadImage(src: string, crossOrigin = true): Promise<HTMLImageElement> {
   });
 }
 
-function buildSquare(img: HTMLImageElement, bg: string | null): HTMLCanvasElement {
-  // Cover-crop: square = min(w,h), center-cropped so the image fully fills 1:1 with no padding.
-  const size = Math.min(img.width, img.height);
-  const sx = (img.width - size) / 2;
-  const sy = (img.height - size) / 2;
+function clampSize(value: string, fallback: number) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(32, Math.min(2400, parsed));
+}
+
+function targetSize(presetId: string, customWidth: string, customHeight: string) {
+  const preset = RESIZE_PRESETS.find((item) => item.id === presetId) ?? RESIZE_PRESETS[0];
+  const width = preset.id === "custom" ? clampSize(customWidth, 1080) : preset.width;
+  const height = preset.id === "custom" ? clampSize(customHeight, 1080) : preset.height;
+  return {
+    width,
+    height,
+    label: `${ratioStr(width, height)} · ${width}×${height}`,
+  };
+}
+
+function buildCoverCanvas(img: HTMLImageElement, bg: string | null, targetW: number, targetH: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = targetW;
+  canvas.height = targetH;
   const ctx = canvas.getContext("2d")!;
   if (bg) {
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, targetW, targetH);
   }
-  ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+  const scale = Math.max(targetW / img.width, targetH / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  const dx = (targetW - dw) / 2;
+  const dy = (targetH - dh) / 2;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, dx, dy, dw, dh);
   return canvas;
 }
 
@@ -52,14 +98,31 @@ export default function SquareStudio() {
   const [image, setImage] = useState<LoadedImage | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [bgColor, setBgColor] = useState("#ffffff");
+  const [ratioPreset, setRatioPreset] = useState("1:1");
+  const [customWidth, setCustomWidth] = useState("1080");
+  const [customHeight, setCustomHeight] = useState("1080");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   
   const [processing, setProcessing] = useState<null | "with" | "without">(null);
-  const [result, setResult] = useState<{ canvas: HTMLCanvasElement; url: string; w: number; h: number } | null>(null);
+  const [result, setResult] = useState<ResultImage | null>(null);
   const [blobUrl, setBlobUrl] = useState<string>("");
+  const [linkStatus, setLinkStatus] = useState<"idle" | "uploading" | "ready" | "failed">("idle");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("square-studio-theme");
+    if (saved === "light" || saved === "dark") setTheme(saved);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    window.localStorage.setItem("square-studio-theme", theme);
+  }, [theme]);
+
+  const activeSize = targetSize(ratioPreset, customWidth, customHeight);
 
   const handleFile = useCallback(async (file: File) => {
     setError(null);
@@ -101,12 +164,16 @@ export default function SquareStudio() {
     }
   }, [urlInput]);
 
-  const finalize = useCallback((canvas: HTMLCanvasElement) => {
+  const finalize = useCallback((canvas: HTMLCanvasElement, mode: "with" | "without", ratioLabel: string) => {
     const url = canvas.toDataURL("image/png");
-    setResult({ canvas, url, w: canvas.width, h: canvas.height });
+    setResult({ canvas, url, w: canvas.width, h: canvas.height, mode, ratioLabel });
     setBlobUrl("");
+    setLinkStatus("uploading");
     canvas.toBlob(async (blob) => {
-      if (!blob) return;
+      if (!blob) {
+        setLinkStatus("failed");
+        return;
+      }
       try {
         const res = await fetch("/api/public/upload-square", {
           method: "POST",
@@ -116,7 +183,9 @@ export default function SquareStudio() {
         if (!res.ok) throw new Error("upload_failed");
         const data = (await res.json()) as { url: string };
         setBlobUrl(data.url);
+        setLinkStatus("ready");
       } catch {
+        setLinkStatus("failed");
         toast.error("Public link upload failed. Use download instead.");
       }
     }, "image/png");
@@ -127,18 +196,20 @@ export default function SquareStudio() {
     setProcessing("with");
     try {
       await new Promise((r) => setTimeout(r, 200));
-      const canvas = buildSquare(image.el, bgColor);
-      finalize(canvas);
-      toast.success("Converted to 1:1");
+      const size = targetSize(ratioPreset, customWidth, customHeight);
+      const canvas = buildCoverCanvas(image.el, bgColor, size.width, size.height);
+      finalize(canvas, "with", size.label);
+      toast.success(`Resized to ${size.label}`);
     } finally {
       setProcessing(null);
     }
-  }, [image, bgColor, finalize]);
+  }, [image, bgColor, ratioPreset, customWidth, customHeight, finalize]);
 
   const processWithoutBg = useCallback(async () => {
     if (!image) return;
     setProcessing("without");
     try {
+      const size = targetSize(ratioPreset, customWidth, customHeight);
       const srcBlob = await fetch(image.src).then((r) => r.blob());
       const ct = srcBlob.type && srcBlob.type.startsWith("image/") ? srcBlob.type : "image/png";
       const res = await fetch("/api/public/remove-bg", {
@@ -153,10 +224,10 @@ export default function SquareStudio() {
       const outBlob = await res.blob();
       const outUrl = URL.createObjectURL(outBlob);
       const el = await loadImage(outUrl, false);
-      const canvas = buildSquare(el, null);
-      finalize(canvas);
+      const canvas = buildCoverCanvas(el, null, size.width, size.height);
+      finalize(canvas, "without", size.label);
       URL.revokeObjectURL(outUrl);
-      toast.success("Background removed & squared");
+      toast.success(`Background removed & resized to ${size.label}`);
     } catch (e: unknown) {
       console.error(e);
       const msg = e instanceof Error ? e.message : "Background removal failed";
@@ -164,7 +235,7 @@ export default function SquareStudio() {
     } finally {
       setProcessing(null);
     }
-  }, [image, finalize]);
+  }, [image, ratioPreset, customWidth, customHeight, finalize]);
 
   const download = (type: "png" | "jpg" | "webp") => {
     if (!result) return;
@@ -172,7 +243,7 @@ export default function SquareStudio() {
     const url = type === "png" ? result.canvas.toDataURL("image/png") : result.canvas.toDataURL(mime, 0.92);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `square-studio.${type}`;
+    a.download = `ti-saju-square-studio-${result.w}x${result.h}.${type}`;
     a.click();
   };
 
@@ -194,6 +265,7 @@ export default function SquareStudio() {
     setImage(null);
     setResult(null);
     setBlobUrl("");
+    setLinkStatus("idle");
     setUrlInput("");
     setError(null);
   };
