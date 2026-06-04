@@ -75,7 +75,7 @@ export const Route = createFileRoute("/api/public/upload-square")({
             });
           }
           const origin = new URL(request.url).origin;
-          const url = `${origin}/api/img/${key}`;
+          const url = `${origin}/api/public/img/${key}`;
           return new Response(JSON.stringify({ url, key }), {
             status: 200,
             headers: { "Content-Type": "application/json", ...corsHeaders },
