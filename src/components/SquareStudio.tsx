@@ -119,6 +119,7 @@ export default function SquareStudio() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("light", theme === "light");
     window.localStorage.setItem("square-studio-theme", theme);
   }, [theme]);
 
@@ -502,12 +503,12 @@ export default function SquareStudio() {
                 <h3 className="font-bold text-lg">Preview</h3>
                 {result && (
                   <span className="text-xs px-2.5 py-1 rounded-full bg-primary/15 text-primary border border-primary/30 font-medium">
-                    {result.w} × {result.h} — 1:1 ✓
+                    {result.w} × {result.h} — {result.ratioLabel.split(" · ")[0]} ✓
                   </span>
                 )}
               </div>
 
-              <div className="flex-1 checker-bg rounded-xl overflow-hidden flex items-center justify-center min-h-[320px] p-4">
+              <div className={`flex-1 rounded-xl overflow-hidden flex items-center justify-center min-h-[320px] p-4 ${result?.mode === "without" ? "bg-surface-elevated" : "checker-bg"}`}>
                 {result ? (
                   <img src={result.url} alt="Result" className="max-w-full max-h-[420px] object-contain animate-fade-in shadow-elevated" />
                 ) : image ? (
@@ -549,17 +550,21 @@ export default function SquareStudio() {
                   <div className="flex gap-2">
                     <input
                       readOnly
-                      value={blobUrl}
+                      value={linkStatus === "uploading" ? "Creating public link..." : blobUrl}
                       className="flex-1 px-3 py-2.5 rounded-lg bg-input border border-border text-xs font-mono truncate focus:outline-none"
                     />
                     <button
                       onClick={copyLink}
-                      className="px-4 py-2.5 rounded-lg bg-gradient-primary text-primary-foreground font-medium text-sm flex items-center gap-2 hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-glow"
+                      disabled={!blobUrl || linkStatus !== "ready"}
+                      className="px-4 py-2.5 rounded-lg bg-gradient-primary text-primary-foreground font-medium text-sm flex items-center gap-2 hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                     >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      {copied ? "Copied" : "Copy"}
+                      {linkStatus === "uploading" ? <Loader2 className="w-4 h-4 animate-spin" /> : copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {linkStatus === "uploading" ? "Wait" : copied ? "Copied" : "Copy"}
                     </button>
                   </div>
+                  {linkStatus === "failed" && (
+                    <p className="mt-2 text-xs text-destructive">Public link failed. Please try processing again.</p>
+                  )}
                 </div>
               </div>
             )}
@@ -568,7 +573,15 @@ export default function SquareStudio() {
       </main>
 
       <footer className="max-w-7xl mx-auto px-6 py-8 text-center text-xs text-muted-foreground">
-        Square Studio — Professional 1:1 image converter
+        Develop by{" "}
+        <a
+          href="https://www.facebook.com/tisaju289"
+          target="_blank"
+          rel="noreferrer"
+          className="text-primary hover:underline font-medium"
+        >
+          Tajul Islam Saju
+        </a>
       </footer>
     </div>
   );
