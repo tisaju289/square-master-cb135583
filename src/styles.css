@@ -119,7 +119,7 @@
   .shadow-elevated { box-shadow: var(--shadow-elevated); }
   .checker-bg {
     background-image:
-      linear-gradient(45deg, oklch(0.22 0.03 280) 25%, transparent 25%),
+      linear-gradient(45deg, var(--checker-color) 25%, transparent 25%),
       linear-gradient(-45deg, var(--checker-color) 25%, transparent 25%),
       linear-gradient(45deg, transparent 75%, var(--checker-color) 75%),
       linear-gradient(-45deg, transparent 75%, var(--checker-color) 75%);
