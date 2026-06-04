@@ -117,23 +117,30 @@ function targetSize(presetId: string, customWidth: string, customHeight: string)
   };
 }
 
-function buildCoverCanvas(img: HTMLImageElement, bg: string | null, targetW: number, targetH: number): HTMLCanvasElement {
+function buildCoverCanvas(
+  img: HTMLImageElement,
+  bg: string | null,
+  targetW: number,
+  targetH: number,
+  bgImg: HTMLImageElement | null = null,
+): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = targetW;
   canvas.height = targetH;
   const ctx = canvas.getContext("2d")!;
-  if (bg) {
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  if (bgImg) {
+    const s = Math.max(targetW / bgImg.width, targetH / bgImg.height);
+    ctx.drawImage(bgImg, (targetW - bgImg.width * s) / 2, (targetH - bgImg.height * s) / 2, bgImg.width * s, bgImg.height * s);
+  } else if (bg) {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, targetW, targetH);
   }
   const scale = Math.max(targetW / img.width, targetH / img.height);
   const dw = img.width * scale;
   const dh = img.height * scale;
-  const dx = (targetW - dw) / 2;
-  const dy = (targetH - dh) / 2;
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, dx, dy, dw, dh);
+  ctx.drawImage(img, (targetW - dw) / 2, (targetH - dh) / 2, dw, dh);
   return canvas;
 }
 
@@ -156,6 +163,9 @@ export default function SquareStudio() {
   const [dragOver, setDragOver] = useState(false);
 
   const [removedBgEl, setRemovedBgEl] = useState<HTMLImageElement | null>(null);
+  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
+  const [bgImageSrc, setBgImageSrc] = useState<string | null>(null);
+  const bgImageRef = useRef<HTMLInputElement>(null);
   const applyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -169,13 +179,13 @@ export default function SquareStudio() {
     window.localStorage.setItem("square-studio-theme", theme);
   }, [theme]);
 
-  // Live re-render: triggers whenever color OR ratio changes after BG removal
+  // Live re-render: triggers whenever color, bg image, OR ratio changes after BG removal
   useEffect(() => {
     if (!removedBgEl) return;
     if (applyDebounceRef.current) clearTimeout(applyDebounceRef.current);
     applyDebounceRef.current = setTimeout(() => {
       const size = targetSize(ratioPreset, customWidth, customHeight);
-      const canvas = buildCoverCanvas(removedBgEl, bgColor, size.width, size.height);
+      const canvas = buildCoverCanvas(removedBgEl, bgColor, size.width, size.height, bgImage);
       const url = canvas.toDataURL("image/png");
       setResult((prev) =>
         prev
@@ -183,7 +193,7 @@ export default function SquareStudio() {
           : null
       );
     }, 80);
-  }, [bgColor, removedBgEl, ratioPreset, customWidth, customHeight]);
+  }, [bgColor, bgImage, removedBgEl, ratioPreset, customWidth, customHeight]);
 
   const activeSize = targetSize(ratioPreset, customWidth, customHeight);
 
@@ -247,11 +257,11 @@ export default function SquareStudio() {
     try {
       await new Promise((r) => setTimeout(r, 200));
       const size = targetSize(ratioPreset, customWidth, customHeight);
-      const canvas = buildCoverCanvas(image.el, bgColor, size.width, size.height);
+      const canvas = buildCoverCanvas(image.el, bgColor, size.width, size.height, bgImage);
       finalize(canvas, "with", size.label);
       toast.success(`Resized to ${size.label}`);
     } finally { setProcessing(null); }
-  }, [image, bgColor, ratioPreset, customWidth, customHeight, finalize]);
+  }, [image, bgColor, bgImage, ratioPreset, customWidth, customHeight, finalize]);
 
   const processWithoutBg = useCallback(async () => {
     if (!image) return;
@@ -273,7 +283,7 @@ export default function SquareStudio() {
       const outUrl = URL.createObjectURL(outBlob);
       const el = await loadImage(outUrl, false);
       setRemovedBgEl(el);
-      const canvas = buildCoverCanvas(el, bgColor, size.width, size.height);
+      const canvas = buildCoverCanvas(el, bgColor, size.width, size.height, bgImage);
       finalize(canvas, "without", size.label);
       URL.revokeObjectURL(outUrl);
       toast.success(`Background removed & resized to ${size.label}`);
@@ -281,7 +291,7 @@ export default function SquareStudio() {
       const msg = e instanceof Error ? e.message : "Background removal failed";
       toast.error(msg);
     } finally { setProcessing(null); }
-  }, [image, bgColor, ratioPreset, customWidth, customHeight, finalize]);
+  }, [image, bgColor, bgImage, ratioPreset, customWidth, customHeight, finalize]);
 
   const download = (type: "png" | "jpg" | "webp") => {
     if (!result) return;
@@ -300,10 +310,29 @@ export default function SquareStudio() {
     } catch { toast.error("Copy failed"); }
   };
 
+  const handleBgImageFile = useCallback(async (file: File) => {
+    if (!file.type.startsWith("image/")) { toast.error("Please select an image file"); return; }
+    if (bgImageSrc?.startsWith("blob:")) URL.revokeObjectURL(bgImageSrc);
+    const src = URL.createObjectURL(file);
+    try {
+      const el = await loadImage(src, false);
+      setBgImage(el);
+      setBgImageSrc(src);
+    } catch { toast.error("Could not load background image"); URL.revokeObjectURL(src); }
+  }, [bgImageSrc]);
+
+  const clearBgImage = () => {
+    if (bgImageSrc?.startsWith("blob:")) URL.revokeObjectURL(bgImageSrc);
+    setBgImage(null);
+    setBgImageSrc(null);
+  };
+
   const reset = () => {
     if (image?.src.startsWith("blob:")) URL.revokeObjectURL(image.src);
+    if (bgImageSrc?.startsWith("blob:")) URL.revokeObjectURL(bgImageSrc);
     setImage(null); setResult(null); setBlobUrl(""); setLinkStatus("idle");
     setUrlInput(""); setError(null); setRemovedBgEl(null);
+    setBgImage(null); setBgImageSrc(null);
   };
 
   const colorInputRef = useRef<HTMLInputElement>(null);
@@ -554,11 +583,11 @@ export default function SquareStudio() {
                   </button>
                 </div>
 
-                {/* Background Color — below action buttons */}
+                {/* Background — color + image — below action buttons */}
                 <div className="rounded-2xl border border-border bg-surface p-4 sm:p-5 space-y-3">
                   <div className="flex items-center gap-2">
                     <Palette className="w-4 h-4 text-primary" />
-                    <h3 className="font-semibold text-sm sm:text-base">Background Color</h3>
+                    <h3 className="font-semibold text-sm sm:text-base">Background</h3>
                     {removedBgEl && (
                       <span className="ml-auto text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 font-medium animate-fade-in">
                         Live ✓
@@ -616,15 +645,64 @@ export default function SquareStudio() {
                       className="w-24 sm:w-28 px-2 sm:px-3 py-2 rounded-lg bg-input border border-border text-xs sm:text-sm font-mono focus:outline-none focus:border-primary"
                     />
                   </div>
-                  {bgColor === null && (
+                  {bgColor === null && !bgImage && (
                     <p className="text-xs text-muted-foreground animate-fade-in">
                       No background — output will be transparent (PNG only).
                     </p>
                   )}
                   {removedBgEl && (
                     <p className="text-xs text-primary/80 animate-fade-in">
-                      BG removed — pick any color above to apply it instantly.
+                      BG removed — pick any color or image above to apply instantly.
                     </p>
+                  )}
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-[10px] sm:text-xs text-muted-foreground px-1">or use image as background</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+
+                  {/* Background image upload */}
+                  <input
+                    ref={bgImageRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleBgImageFile(e.target.files[0])}
+                  />
+                  {bgImageSrc ? (
+                    <div className="flex items-center gap-3 p-2.5 rounded-xl border border-primary/40 bg-primary/5 animate-fade-in">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex-shrink-0 border border-border">
+                        <img src={bgImageSrc} alt="Background" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-primary">Image background active</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Color picker is overridden</p>
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => bgImageRef.current?.click()}
+                          className="text-[10px] sm:text-xs px-2 py-1 rounded-md border border-border bg-surface-elevated hover:border-primary transition-colors"
+                        >
+                          Change
+                        </button>
+                        <button
+                          onClick={clearBgImage}
+                          className="text-[10px] sm:text-xs px-2 py-1 rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => bgImageRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 rounded-xl border-2 border-dashed border-border hover:border-primary/60 hover:bg-primary/5 transition-all text-xs sm:text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      Upload background image
+                    </button>
                   )}
                 </div>
               </div>
