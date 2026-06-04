@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import process from "node:process";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,14 +56,14 @@ export const Route = createFileRoute("/api/public/remove-bg")({
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "google/gemini-2.5-flash-image",
+                model: "google/gemini-3.1-flash-image-preview",
                 messages: [
                   {
                     role: "user",
                     content: [
                       {
                         type: "text",
-                        text: "Remove the background from this image completely. Output a clean cutout of the main subject on a fully transparent background. Keep the subject sharp and unchanged. PNG with alpha.",
+                        text: "Remove every part of the background completely. Return only the main foreground subject as a clean PNG cutout with true transparent alpha. Do not add checkerboards, shadows, patterns, shapes, replacement backgrounds, outlines, or decorative artifacts. Preserve the subject exactly and make all non-subject pixels fully transparent.",
                       },
                       { type: "image_url", image_url: { url: dataUrl } },
                     ],
