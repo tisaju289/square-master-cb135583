@@ -275,15 +275,24 @@ export default function SquareStudio() {
       {/* Header */}
       <header className="border-b border-border/60 backdrop-blur sticky top-0 z-10 bg-background/80">
         <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow">
               <Square className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
             </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">Square <span className="text-gradient">Studio</span></h1>
-              <p className="text-xs text-muted-foreground">Image to 1:1 ratio converter</p>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight truncate">Ti Saju <span className="text-gradient">Square Studio</span></h1>
+              <p className="text-xs text-muted-foreground">Image ratio resize converter</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-border hover:bg-surface-elevated transition-colors"
+              aria-label="Toggle theme"
+              title="Toggle theme"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           {image && (
             <button
               onClick={reset}
@@ -292,6 +301,7 @@ export default function SquareStudio() {
               <RotateCcw className="w-4 h-4" /> Reset
             </button>
           )}
+          </div>
         </div>
       </header>
 
@@ -300,8 +310,8 @@ export default function SquareStudio() {
           {/* LEFT */}
           <section className="space-y-6">
             <div>
-              <h2 className="text-3xl font-bold mb-2">Drop in. <span className="text-gradient">Square out.</span></h2>
-              <p className="text-muted-foreground">Convert any image to a perfect 1:1 ratio — with or without background.</p>
+              <h2 className="text-3xl font-bold mb-2">Drop in. <span className="text-gradient">Resize out.</span></h2>
+              <p className="text-muted-foreground">Resize any image to the ratio you need — with or without background.</p>
             </div>
 
             {/* Upload zone */}
@@ -378,6 +388,61 @@ export default function SquareStudio() {
                   </div>
                 </div>
 
+                {/* Size options */}
+                <div className="rounded-2xl border border-border bg-surface p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Crop className="w-4 h-4" /> Resize ratio
+                    </h3>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-primary/15 text-primary border border-primary/30 font-medium">
+                      {activeSize.label}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {RESIZE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setRatioPreset(preset.id)}
+                        className={`text-left rounded-lg border px-3 py-2.5 transition-all ${
+                          ratioPreset === preset.id
+                            ? "border-primary bg-primary/10 shadow-glow"
+                            : "border-border bg-surface-elevated hover:border-primary/60"
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{preset.label}</span>
+                        <span className="block text-xs text-muted-foreground">{preset.detail}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {ratioPreset === "custom" && (
+                    <div className="grid grid-cols-2 gap-3 animate-fade-in">
+                      <label className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Width</span>
+                        <input
+                          type="number"
+                          min="32"
+                          max="2400"
+                          value={customWidth}
+                          onChange={(e) => setCustomWidth(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-sm focus:outline-none focus:border-primary"
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Height</span>
+                        <input
+                          type="number"
+                          min="32"
+                          max="2400"
+                          value={customHeight}
+                          onChange={(e) => setCustomHeight(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-sm focus:outline-none focus:border-primary"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+
                 {/* Two option cards */}
                 <div className="grid sm:grid-cols-2 gap-4">
                   <button
@@ -390,8 +455,8 @@ export default function SquareStudio() {
                         ? <Loader2 className="w-5 h-5 text-primary-foreground animate-spin" />
                         : <Sparkles className="w-5 h-5 text-primary-foreground" />}
                     </div>
-                    <h3 className="font-bold text-lg mb-1">Without BG → 1:1</h3>
-                    <p className="text-sm text-muted-foreground">Remove background, center on transparent square.</p>
+                    <h3 className="font-bold text-lg mb-1">Without BG</h3>
+                    <p className="text-sm text-muted-foreground">Remove background, export transparent cover resize.</p>
                   </button>
 
                   <button
@@ -404,8 +469,8 @@ export default function SquareStudio() {
                         ? <Loader2 className="w-5 h-5 text-primary-foreground animate-spin" />
                         : <Square className="w-5 h-5 text-primary-foreground" />}
                     </div>
-                    <h3 className="font-bold text-lg mb-1">With BG → 1:1</h3>
-                    <p className="text-sm text-muted-foreground">Pad with solid color, keep original background.</p>
+                    <h3 className="font-bold text-lg mb-1">With BG</h3>
+                    <p className="text-sm text-muted-foreground">Resize to selected ratio with full cover crop.</p>
                   </button>
                 </div>
 
